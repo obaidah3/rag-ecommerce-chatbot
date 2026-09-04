@@ -1,6 +1,9 @@
 # 🛒 RAG-Powered E-Commerce Support Chatbot
 
+
 <img width="1918" height="1079" alt="Screenshot 2026-09-04 195942" src="https://github.com/user-attachments/assets/abab140a-e7d2-4bd1-b82a-5ad7c9cc34c1" />
+
+
 
 An end-to-end, multi-model customer support chatbot for e-commerce, combining **classical ML**, **fine-tuned Transformers**, and **Retrieval-Augmented Generation (RAG)** — built and deployable within a 1-day engineering timeline, fully runnable on **Google Colab** (free tier).
 
@@ -126,16 +129,62 @@ Each notebook is self-contained, mounts Google Drive, and saves its trained arti
 
 ## 📊 Accuracy & Evaluation
 
-> Exact numbers depend on the specific training run (random seeds, dataset version), but each notebook reports these metrics on hold-out data:
+> These are the **actual results captured in the executed notebook outputs** (single training run — may vary slightly with different seeds/hardware).
 
-| Model | Metric | Reported In |
+### 1. Language Detector (`01_language_detection.ipynb`)
+| Split | Accuracy |
+|---|---|
+| Validation | **99.43%** |
+| Test | **99.50%** |
+
+Per-language F1 on validation was ≥0.97 for every one of the 17 languages, with most languages (ar, bg, de, el, es, fr, it, ja, pl, pt, ru, th, tr) at **0.99–1.00 F1**; the weakest were `sw` (Swahili, 0.97 F1) and `hi` (Hindi, 0.98 F1) — both still strong.
+
+### 2. Sentiment Classifier (`02_sentiment_classifier.ipynb`)
+| Metric | Score |
+|---|---|
+| Eval Accuracy | **97.65%** |
+| Eval Macro F1 | **90.30%** |
+| Eval Loss | 0.0555 |
+| Training Loss (final) | 0.102 |
+
+The gap between accuracy (97.6%) and macro-F1 (90.3%) reflects class imbalance in `dair-ai/emotion` — the model does very well overall but slightly less well on the rarer `neutral` (surprise) bucket.
+
+**Qualitative domain-shift check** (hand-written customer-support messages, not Twitter data):
+
+| Message | Predicted | Confidence |
 |---|---|---|
-| Language Detector | Validation & test **accuracy** + full `classification_report` (per-language precision/recall/F1) | `01_language_detection.ipynb` |
-| Sentiment Classifier | **Accuracy** and **macro F1** on the test split, computed each epoch via `evaluate` | `02_sentiment_classifier.ipynb` |
-| Intent Classifier | Full `classification_report` (precision/recall/F1 per intent group) on a stratified 15% hold-out | `03_intent_classifier.ipynb` |
-| RAG Retrieval | Qualitative relevance check via cosine-similarity scores on sample queries | `04_rag_pipeline.ipynb` |
+| "This is the third time my order has been delayed, I am extremely frustrated!" | negative | 99.9% |
+| "Can you tell me the status of my order #4521?" | negative | 52.9% ⚠️ |
+| "Thank you so much, the refund arrived, you guys are great!" | positive | 99.7% |
 
-**Qualitative validation:** the sentiment model is additionally spot-checked against hand-written customer-support-style messages (not just Twitter-style test data) to confirm it generalizes past the training domain before being trusted in production routing.
+⚠️ The neutral status-check question was mis-routed to "negative" with low confidence — a known domain-shift edge case flagged in [Limitations](#-limitations--future-work).
+
+### 3. Intent Classifier (`03_intent_classifier.ipynb`)
+Evaluated on a stratified 15% hold-out (4,031 samples out of 26,872 total):
+
+| Intent Group | Precision | Recall | F1 | Support |
+|---|---|---|---|---|
+| account_management | 1.00 | 1.00 | 1.00 | 898 |
+| billing_and_refunds | 1.00 | 1.00 | 1.00 | 1,191 |
+| complaint | 1.00 | 1.00 | 1.00 | 599 |
+| order_management | 0.99 | 1.00 | 1.00 | 745 |
+| order_status | 1.00 | 0.99 | 1.00 | 448 |
+| out_of_scope | 1.00 | 0.99 | 1.00 | 150 |
+| **Overall accuracy** | | | **100%** | 4,031 |
+
+This near-perfect score is expected: Bitext's instruction texts are templated/synthetic per intent, making them highly linearly separable — a strong signal that a linear model is the right complexity choice here (not overfitting risk, but low task difficulty).
+
+### 4. RAG Retrieval (`04_rag_pipeline.ipynb`)
+No held-out benchmark is computed (no ground-truth relevance labels exist for the corpus); retrieval quality is validated qualitatively via cosine-similarity scores on sample queries, e.g. retrieving highly relevant past refund/order complaints with similarity scores in the 0.85–0.95 range for close paraphrases.
+
+### Summary Table
+
+| Model | Key Metric | Value |
+|---|---|---|
+| Language Detection | Test Accuracy | **99.5%** |
+| Sentiment Analysis | Eval Accuracy / Macro F1 | **97.65% / 90.3%** |
+| Intent Classification | Test Accuracy | **~100%** |
+| RAG Retrieval | Qualitative (cosine similarity) | **0.85–0.95** on relevant matches |
 
 ---
 
